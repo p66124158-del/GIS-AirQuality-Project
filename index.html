@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台中地區空污濃度展示</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-groupedlayercontrol/0.6.1/leaflet.groupedlayercontrol.min.css" />
+
+    <style>
+
+        /*-----------------------------------------------------------------------*/
+        /* 2. 設定地圖容器的大小 */
+        #map {
+            height: 85vh;
+            width: 95%;
+            margin: 0 auto; /* 🌟 加上這一行，地圖就會在網頁中間 */
+            border-radius: 8px;
+            border-width: 0.5cm;
+            border-color: #333;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f4f7f6;
+        }
+        h1 {
+            font-size:large;
+            margin-left: 25px;
+            padding: 20px;
+            color: #2c3e50;
+        }
+
+        /*-----------------------------------------------------------------------*/
+        /* 圖例的容器樣式 */
+        .legend {
+            line-height: 18px;
+            color: #555;
+            background: white;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        /* 圖例中的顏色方塊 */
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+
+        .legend h4 {
+            margin: 0 0 5px;
+            font-size: 14px;
+        }
+    
+    /*-----------------------------------------------------------------------------*/
+    /* 坐標顯示框 */
+    /* 1. 強制讓 Leaflet 左下角容器橫跨 100% 寬度，以便置中 */
+        .leaflet-bottom.leaflet-left {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            pointer-events: none; /* 讓容器不擋住地圖 */
+            margin-bottom: 15px;
+        }
+
+        /* 2. 座標顯示框本體 */
+        .coordinate-display {
+            pointer-events: auto;  /* 恢復框框本身的感應 */
+            padding: 8px 20px;
+            background: rgba(44, 62, 80, 0.9); /* 科技深藍 */
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            white-space: nowrap;
+            z-index: 1000;
+        }
+
+        /* 確保比例尺跟縮放按鈕不要被擠到中間 (維持在左邊) */
+        .leaflet-left .leaflet-control-scale, 
+        .leaflet-left .leaflet-control-zoom {
+            margin-left: 10px;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+        }
+
+        /*-----------------------------------------------------------------------*/
+        /* 針對左下角的縮放控制項進行位移 */
+        .leaflet-bottom.leaflet-left .leaflet-control-zoom {
+            position: absolute;   /* 脫離 flex 佈局的置中影響 */
+            left: 10px;          /* 靠左固定 */
+            bottom: 40px;       /* 🌟 向上推高，避開比例尺與座標框 */
+            margin: 0;
+        }
+
+        /* 針對比例尺進行位移，避免跟座標框疊在一起 */
+        .leaflet-bottom.leaflet-left .leaflet-control-scale {
+            position: absolute;
+            left: 10px;
+            bottom: 5px;        /* 釘在最底部 */
+            margin: 0;
+        }
+
+        /*--------------------------------台中鄉鎮圖層---------------------------------------*/
+        /* 移除 Tooltip 的預設樣式，只保留文字 */
+        .leaflet-tooltip.district-label {
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            text-shadow: 1px 1px 2px white; /* 文字外框白邊，增加易讀性 */
+            pointer-events: none; /* 避免文字阻擋滑鼠點擊下方的地圖 */
+        }
+        /* 隱藏 Tooltip 的箭頭 */
+        .leaflet-tooltip-left:before, .leaflet-tooltip-right:before {
+            display: none;
+        }
+
+
+        /*--------------------------------右上角的選單--------------------------------------*/
+        /* --- 1. 基本容器美化 --- */
+        .leaflet-control-layers-expanded {
+            padding: 10px !important;
+            min-width: 180px;
+            background: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+
+        /* --- 2. 群組標題美化 (Dropdown Header) --- */
+        .leaflet-control-layers-group-name {
+            display: flex !important;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-weight: bold;
+            padding: 8px 5px;
+            margin-top: 5px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #e2e9be; /* 左側藍條增加識別度 */
+            transition: background 0.3s;
+        }
+
+        .leaflet-control-layers-group-name:hover {
+            background: #e9ecef;
+        }
+
+        /* 在標題後方加入小箭頭 (選配) */
+        .leaflet-control-layers-group-name::after {
+        /*  content: '▼';*/
+            font-size: 10px;
+            color: #999;
+        }
+
+        /* --- 3. 子選項容器控制 --- */
+        /* 預設隱藏子選項 */
+        .leaflet-control-layers-group-selector {
+            display: none; 
+            padding: 5px 10px;
+            border: 1px solid #eee;
+            border-top: none;
+            background: #ffffff;
+            margin-bottom: 5px;
+        }
+
+        /* --- 2. 當外層有 .is-open 時顯示 (強制顯示) --- */
+        .leaflet-control-layers-group.is-open .leaflet-control-layers-group-selector {
+            display: block !important;
+        }
+
+        /* 顯示子選項的 Class (透過 JS 切換) */
+        .leaflet-control-layers-group.is-open .leaflet-control-layers-group-selector {
+            display: block;
+        }
+
+        /* 展開時旋轉箭頭 
+        .leaflet-control-layers-group.is-open .leaflet-control-layers-group-name::after {
+            content: '▲';
+        }*/
+
+    </style>
+</head>
+
+<style>
+    /* Reset & 全局字體 */
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: "Microsoft JhengHei", Arial, sans-serif;
+    }
+
+    /* --- 1. 頂部導航欄樣式 --- */
+    .site-header {
+        background-color: #4b5066; /* 吸管取色：深藍灰色 */
+        color: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 40px; /* 上下15px，左右40px */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* 左側 Logo 區域 */
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 15px; /* Logo 與文字的間距 */
+    }
+
+    /* 模擬那個紅色的圓形 Logo (請換成真正的圖片) */
+    .logo-img {
+        width: 50px;
+        height: 50px;
+        background-color: #ffffff; /* 紅色背景 */
+        border-radius: 50%; /* 變圓形 */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-weight: bold;
+        font-size: 12px;
+        color: white;
+        flex-shrink: 0; /* 防止縮小 */
+    }
+    
+    /* 如果你有真正的圖片，請用這個 class */
+    /* .logo-img { width: 50px; height: auto; } */
+
+    /* 標題文字區塊 */
+    .site-title-group {
+        display: flex;
+        flex-direction: column; /* 垂直排列 */
+        justify-content: center;
+        line-height: 1.4;
+    }
+
+    .main-title {
+        font-size: 25px;
+        font-weight:bold;
+        letter-spacing: 0.5px;
+    }
+
+    .sub-title {
+        font-size: 14px;
+        color: #d1d5db; /* 稍微淡一點的白色 */
+    }
+
+    /* 右側導航連結 */
+    .header-right ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        gap: 40px; /* 選單之間的距離 */
+    }
+
+    .header-right a {
+        text-decoration: none;
+        color: #fff;
+        font-size: 20px;
+        font-weight: 700;
+        transition: opacity 0.3s;
+    }
+
+    .header-right a:hover {
+        opacity: 0.8; /* 滑鼠移過去變稍微透明 */
+        text-decoration: underline;
+    }
+
+    /* --- 2. Banner (大標題區塊) --- */
+    .hero-banner {
+        /* 這裡用了兩層背景：上層是半透明白色遮罩，下層是地圖圖片 */
+        background: 
+            linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1)),
+            url('background1.png'); /* 這裡換成你想要的底圖 */
+        
+        background-size: cover;
+        background-position: center;
+        height: 250px; /* 高度可自行調整 */
+        display: flex;
+        flex-direction: column;
+        justify-content: center; /* 垂直置中 */
+        padding-left: 80px; /* 文字離左邊的距離，對齊上面的 Logo */
+        border-bottom: 1px solid #ddd;
+    }
+
+    .hero-banner h1 {
+        margin: 0;
+        font-size: 45px; /* 主標題大小 */
+        color: #000;
+        letter-spacing: 1px;
+    }
+
+    .hero-banner p {
+        margin: 10px 0 0 20px; /* 上間距10px，左縮排20px */
+        font-size: 30px;
+        color: #333;
+        font-weight: 800;
+    }
+
+    /* 手機版簡單適配 */
+    @media (max-width: 768px) {
+        .site-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 15px;
+            padding: 15px 20px;
+        }
+        .header-right ul {
+            width: 100%;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .hero-banner {
+            height: 180px;
+            padding-left: 20px;
+        }
+        .hero-banner h1 { font-size: 28px; }
+        .hero-banner p { font-size: 18px; }
+    }
+
+    /* ==========================================================================
+        👇👇👇 頁尾 (Footer) 樣式區 👇👇👇
+    ========================================================================== */
+    .site-footer {
+        background-color: #928a97; /* 吸取圖片中的灰紫色 */
+        color: #ffffff;            /* 白色文字 */
+        text-align: center;        /* 文字置中 */
+        padding: 40px 0;           /* 上下留白，讓它看起來寬一點 */
+        margin-top: 30px;          /* 與上方地圖拉開一點距離 */
+        font-family: "Microsoft JhengHei", Arial, sans-serif;
+    }
+
+    .footer-info {
+        font-size: 18px;
+        font-weight: 800;           /* 前兩行的字大一點 */
+        margin-bottom: 15px;       /* 行與行之間的間距 */
+        letter-spacing: 1px;       /* 字距稍微拉開，比較有質感 */
+        line-height: 2;          /* 行高 */
+    }
+
+    .copyright {
+        font-size: 12px;           /* 版權宣告字小一點 */
+        font-weight: bold;
+        margin-top: 25px;          /* 與上方資訊拉開距離 */
+        opacity: 0.9;              /* 稍微透明一點點 */
+    }
+</style>
+
+<header>
+    <div class="site-header">
+        <div class="header-left">
+            <img src="C:\面試加油加油\GIS_Project\ncku-logo.png" class="logo-img">
+
+            <div class="site-title-group">
+                <span class="main-title">Geo-AI 於中部空品區 PM2.5 與 NO2 時空推估及中火污染影響分析之應用</span>
+            </div>
+        </div>
+
+        <nav class="header-right">
+            <ul>
+                <li><a href="index.html">推估圖展示</a></li>
+            </ul>
+        </nav>
+    </div>
+
+    <div class="hero-banner">
+        <h1>PM2.5 與 NO2 推估濃度展示</h1>
+        <p>- 以台中地區為例</p>
+    </div>
+</header>
+
+<body>
+
+    <h1>*推估圖時間解析度：日平均<br><br>*環境部 PM2.5 濃度之相關標準：日平均小於 30 µg/m³</h1>
+
+    <div id="map"></div>
+
+    <footer class="site-footer">
+        <div class="footer-info">
+            <div>Name ： Lai Sin Yi</div>
+            <div>Location ： Taichung,Nantun</div>
+        </div>
+        <div class="copyright">
+            &copy; produced by sunicute
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-groupedlayercontrol/0.6.1/leaflet.groupedlayercontrol.min.js"></script>
+    <script src="pollution_points.js"></script>
+    <script src="pollution_points_no2.js"></script>
+    <script src="taiwan_bounds.js"></script>  
+    <script src="station_data.js"></script>
+    <script src="taichung_bounds.js"></script>
+    <script src="taichung_road.js"></script>          
+
+
+    <script>
+
+    /*----------------------------------------------------------------------加入地圖底圖----------------------------------------------------------------------------------*/
+    // 1.1 加入底圖 (OSM)
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    });
+    // 1.2 定義衛星底圖 (Esri World Imagery)
+    var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
+    });
+
+    // 2. 初始化地圖，預設使用 osm 圖層
+    var map = L.map('map', {
+        center: [24.21, 120.92],
+        zoom: 10.5,
+        layers: [osm] 
+    });
+
+
+    /*----------------------------------------------------------加入空污影像、空污js、測站js、縣市界圖層、道路js--------------------------------------------------------------*/
+
+    // 3. 定義影像邊界 (請將你的 EPSG:3826 座標轉換為 WGS84 緯經度)
+    var imageBounds = [
+        [23.755, 120.275], 
+        [24.71, 121.6215]
+    ];
+
+    /*----------------------------- 縣市界圖層 ----------------------------------*/
+    var boundaryLayer = L.geoJSON(taiwanBounds, {
+        style: {
+            color: "#666666",    // 線條顏色：深灰色
+            weight: 2,         // 線條粗細
+            fillOpacity: 0,      // 透明填充（只留邊框）
+            dashArray: '3',      // 虛線效果
+            interactive: false   // 讓滑鼠穿透
+        }
+    }).addTo(map); 
+
+
+    /*-----------------------------------PM25-------------------------------------*/
+    // 疊加你的空污影像
+    var pollutionOverlay = L.imageOverlay('pollution_map_mean.png', imageBounds, {
+        opacity: 0.7,
+        interactive: false 
+    });
+    // 自動縮放到影像所在位置
+    //map.fitBounds(imageBounds);
+
+    // 9.讀取PM25空污點位數值js
+    var geojsonLayer = L.geoJSON(pollutionData, {
+        pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 0.1,           
+                fillColor: "#ff4500",
+                color: "#000",
+                weight: 0,          
+                fillOpacity: 0.01,    
+                opacity: 0.01,           
+                interactive: true     
+            });
+        },
+        onEachFeature: function (feature, layer) {
+            var val = feature.properties.value;
+            var displayValue = (val !== undefined) ? val.toFixed(2) : "N/A";
+
+            layer.bindTooltip("PM2.5 濃度 : " + displayValue + " (µg/m³)", {
+                sticky: true,        
+                direction: "top",
+                offset: [0, -5]
+            });
+
+            layer.on({
+                mouseover: function (e) {
+                    var l = e.target;
+                    l.setStyle({ radius: 8, fillOpacity: 1, weight: 2 });
+                    l.bringToFront();    
+                },
+                mouseout: function (e) {
+                    var l = e.target;
+                    l.setStyle({ radius: 3, fillOpacity: 0.1, weight: 0 });
+                }
+            });
+        }
+    });
+
+    /*-----------------------------------NO2-------------------------------------*/
+    var pollutionOverlay2 = L.imageOverlay('pollution_map_mean_no2.png', imageBounds, {
+        opacity: 0.7,
+        interactive: false 
+    });
+
+    var geojsonLayer2 = L.geoJSON(pollutionNO2Data, {
+        pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 0.1,           
+                fillColor: "#134074",
+                color: "#000",
+                weight: 0,           
+                fillOpacity: 0.01,     
+                opacity: 0.01,           
+                interactive: true     
+            });
+        },
+        onEachFeature: function (feature, layer) {
+            var val = feature.properties.value;
+            var displayValue = (val !== undefined) ? val.toFixed(2) : "N/A";
+
+            layer.bindTooltip("NO2 濃度 : " + displayValue + " (ppb)", {
+                sticky: true,        
+                direction: "top",
+                offset: [0, -5]
+            });
+
+            layer.on({
+                mouseover: function (e) {
+                    var l = e.target;
+                    l.setStyle({ radius: 8, fillOpacity: 1, weight: 2 });
+                    l.bringToFront();    
+                },
+                mouseout: function (e) {
+                    var l = e.target;
+                    l.setStyle({ radius: 3, fillOpacity: 0.1, weight: 0 });
+                }
+            });
+        }
+    });
+
+    /*------------------------------------------------------------------------------------------
+      Group 定義與預設開啟
+    -------------------------------------------------------------------------------------------*/
+    var pm25Group = L.layerGroup([pollutionOverlay, geojsonLayer]);
+    var no2Group = L.layerGroup([pollutionOverlay2, geojsonLayer2]);
+
+    // 🔥 預設開啟 PM2.5
+    pm25Group.addTo(map);
+
+
+    /*----------------------------- 監測站點位圖層 ----------------------------------*/
+    function getDistance(c1, c2) {
+        var dx = c1[0] - c2[0];
+        var dy = c1[1] - c2[1];
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    function getClosestValue(stationCoords, geojsonData) {
+        var minDistance = Infinity;
+        var closestValue = "N/A";
+
+        geojsonData.features.forEach(function(feature) {
+            var coords = feature.geometry.coordinates;
+            var dist = getDistance(stationCoords, coords);
+            if (dist < minDistance) {
+                minDistance = dist;
+                closestValue = feature.properties.value;
+            }
+        });
+        return (closestValue !== undefined) ? closestValue.toFixed(2) : "N/A";
+    }
+
+    var stationIcon = L.icon({
+        iconUrl: 'weather-station.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+    });
+
+    var stationLayer = L.geoJSON(stationData, {
+        pointToLayer: function (feature, latlng) {
+            return L.marker(latlng, { icon: stationIcon });
+        },
+        onEachFeature: function (feature, layer) {
+            var stationCoords = feature.geometry.coordinates;
+            var lon = stationCoords[0].toFixed(4);
+            var lat = stationCoords[1].toFixed(4);
+
+            layer.on('mouseover', function () { 
+                var isPm25Visible = map.hasLayer(pm25Group);
+                var isNo2Visible = map.hasLayer(no2Group);
+
+                var pmSection = "";
+                if (isPm25Visible) {
+                    var pmValue = getClosestValue(stationCoords, pollutionData);
+                    pmSection = `
+                        <div style="margin-top: 5px; padding: 8px; background: #fdf2f2; border-radius: 4px; border-left: 4px solid #d73027;">
+                            <b style="color: #d73027;">PM2.5 濃度數值：</b><br>
+                            <span style="color: #d73027; font-size: 20px; font-weight: bold;">${pmValue}</span> 
+                            <small>µg/m³</small>
+                        </div>`;
+                }
+
+                var no2Section = "";
+                if (isNo2Visible) {
+                    var no2Value = getClosestValue(stationCoords, pollutionNO2Data); 
+                    no2Section = `
+                        <div style="margin-top: 5px; padding: 8px; background: #eef7ff; border-radius: 4px; border-left: 4px solid #3498db;">
+                            <b style="color: #3498db;">NO2 濃度數值：</b><br>
+                            <span style="color: #3498db; font-size: 20px; font-weight: bold;">${no2Value}</span> 
+                            <small>ppb</small>
+                        </div>`;
+                }
+
+                var finalContent = `
+                    <div style="font-family: 'Microsoft JhengHei'; min-width: 180px;">
+                        <b style="color: #2980b9; font-size: 15px;">📍 監測站資訊</b><br>
+                        <hr style="margin: 5px 0; border: 0.5px solid #eee;">
+                        <b>測站名：</b>${feature.properties.sitename || '未知'}<br>
+                        <b>測站類型：</b>${feature.properties.sitetype || '監測站'}<br>
+                        ${pmSection}
+                        ${no2Section}
+                        <hr style="margin: 5px 0; border: 0.5px solid #eee;">
+                        <div style="font-size: 11px; color: #777;">坐標：${lon} , ${lat}</div>
+                    </div>`;
+
+                this.bindPopup(finalContent, { closeButton: false, offset: L.point(0, -5) }).openPopup();
+            });
+            
+            layer.on('mouseout', function () { this.closePopup(); });
+        }
+    }).addTo(map); // 🔥 預設開啟空品監測站
+
+
+    /*--------------------------台中鄉鎮區圖層------------------------------*/
+    var townLayer = L.geoJSON(taichungBounds, {
+        interactive: false,
+        style: function(feature) {
+            return {
+                color: '#666666',      
+                weight: 1.5,           
+                dashArray: '5, 5',     
+                fillColor: 'transparent', 
+                fillOpacity: 0
+            };
+        },
+        onEachFeature: function (feature, layer) {
+            layer.bindTooltip(feature.properties.TOWNNAME, {
+                permanent: true,      
+                direction: 'center',  
+                className: 'district-label' 
+            }).openTooltip();
+        }
+    }).addTo(map); // 🔥 預設開啟行政區邊界
+
+    /*-----------------------------台中道路---------------------------------*/
+    var roadLayer = L.geoJSON(taichungRoad, {
+        interactive: false, 
+        style: function(feature) {
+            return {
+                color: "#ffffff",   
+                weight: 1,        
+                opacity: 0.8        
+            };
+        }
+    });
+
+    /*----------------------------------------------------------------加入比例尺、圖例(功能)---------------------------------------------------------------------------*/
+
+    // 7.加入比例尺
+    L.control.scale({
+        metric: true,       
+        imperial: false,    
+        position: 'bottomleft' 
+    }).addTo(map);
+
+
+    /*----------------------------------------------------------------*/
+    /* 1. 定義標記點與圖例物件 */
+    /*----------------------------------------------------------------*/
+
+    // 台電標記點
+    var marker = L.marker([24.22, 120.485]).bindPopup("<b>台中火力發電廠</b>");
+
+    // PM2.5 圖例
+    var legendPM25 = L.control({position: 'bottomright'});
+    legendPM25.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'info legend'),
+            grades = [10, 20, 30, 40, 50],
+            labels = ['#fee5d9', '#fcae91', '#fb6a4a', '#de2d26', '#a50f15'];
+        div.innerHTML = '<h4>PM2.5 濃度 (µg/m³)</h4>';
+        for (var i = 0; i < grades.length; i++) {
+            div.innerHTML += '<i style="background:' + labels[i] + '"></i> ' +
+                grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+        }
+        return div;
+    };
+
+    // NO2 圖例
+    var legendNO2 = L.control({position: 'bottomright'});
+    legendNO2.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'info legend'),
+            grades = [0, 10, 20, 30, 40],
+            labels = ['#eef7ff', '#3498db', '#2980b9', '#2471a3', '#1a5276']; 
+        div.innerHTML = '<h4>NO2 濃度 (ppb)</h4>';
+        for (var i = 0; i < grades.length; i++) {
+            div.innerHTML += '<i style="background:' + labels[i] + '"></i> ' +
+                grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+        }
+        return div;
+    };
+
+    /*----------------------------------------------------------------*/
+    /* 2. 核心控制邏輯：監聽圖層切換 */
+    /*----------------------------------------------------------------*/
+
+    map.on('overlayadd', function(eventLayer) {
+        if (eventLayer.name === 'PM2.5 濃度資訊') {
+            legendPM25.addTo(map);
+            marker.addTo(map);
+            if (searchControl) searchControl.addTo(map); 
+            if (map.hasLayer(no2Group)) map.removeControl(legendNO2);
+        }
+        if (eventLayer.name === 'NO2 濃度資訊') {
+            legendNO2.addTo(map);
+            marker.addTo(map);
+            if (searchControl) searchControl.addTo(map); 
+            if (map.hasLayer(pm25Group)) map.removeControl(legendPM25);
+        }
+    });
+
+    map.on('overlayremove', function(eventLayer) {
+        if (eventLayer.name === 'PM2.5 濃度資訊') {
+            map.removeControl(legendPM25);
+            if (map.hasLayer(no2Group)) {
+                legendNO2.addTo(map);
+            } else {
+                map.removeLayer(marker);
+                map.removeControl(searchControl);
+            }
+        }
+        if (eventLayer.name === 'NO2 濃度資訊') {
+            map.removeControl(legendNO2);
+            if (map.hasLayer(pm25Group)) {
+                legendPM25.addTo(map);
+            } else {
+                map.removeLayer(marker);
+                map.removeControl(searchControl);
+            }
+        }
+    });
+
+    /*----------------------------------------------------------------*/
+    /* 3. 初始狀態檢查 (頁面剛載入時執行) */
+    /*----------------------------------------------------------------*/
+    if (map.hasLayer(pm25Group)) {
+        legendPM25.addTo(map);
+        marker.addTo(map);
+    } else if (map.hasLayer(no2Group)) {
+        legendNO2.addTo(map);
+        marker.addTo(map);
+    }
+
+
+/*------------------------------------------------------------------------地圖中經緯度顯示框(地圖中下方)-------------------------------------------------------------------------*/
+
+    // 8. 建立一個自定義控制項，專門用來顯示座標
+        var coordsControl = L.control({position: 'bottomleft'});
+
+        coordsControl.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'coords-wrapper');
+            var center = map.getCenter();
+            var lat = center.lat.toFixed(4);
+            var lng = center.lng.toFixed(4);
+
+            div.innerHTML = `
+                <div id="coords" class="coordinate-display">
+                    🐹 觀測中 | 📍 經度: ${lng} | 緯度: ${lat}
+                </div>
+            `;
+            return div;
+        };
+
+        coordsControl.addTo(map);
+
+        map.on('mousemove', function(e) {
+            var lat = e.latlng.lat.toFixed(4);
+            var lng = e.latlng.lng.toFixed(4);
+            var target = document.getElementById('coords');
+            if (target) {
+                target.innerHTML = `🐹 觀測中 | 📍 經度: ${lng} | 緯度: ${lat}`;
+            }
+        });
+
+
+    /*----------------------------------------------------------------地圖右上角圖層選單------------------------------------------------------------------------*/
+
+    var baseMaps = {
+        "標準街道地圖": osm,
+        "衛星影像圖": satellite
+    };
+    
+
+    // 2. 疊加圖層改為「巢狀結構」
+    // 格式： "組名": { "圖層顯示名稱": 圖層變數 }
+    var groupedOverlays = {
+        "📍 基礎圖層": {
+            "縣市邊界": boundaryLayer,
+            "行政區邊界": townLayer,
+            "空品監測站": stationLayer
+        },
+        "☁️ 空污濃度推估": {
+            "PM2.5 濃度資訊": pm25Group,
+            "NO2 濃度資訊": no2Group
+        },
+        "🛣️ 土地利用": {
+            "主要道路": roadLayer
+        }
+    };
+
+    // 3. 使用外掛的指令 L.control.groupedLayers
+    // 注意：這裡的參數是 groupedOverlays，不是之前的 allOverlays
+    var layerControl = L.control.groupedLayers(baseMaps, groupedOverlays, {
+        collapsed: false,       // 預設展開選單
+        groupCheckboxes: false,   // 🌟 額外功能：組名旁邊會出現一個方塊，可以「一鍵全選/全取消」該組圖層
+        exclusiveGroups: ["☁️ 空污濃度推估"] // 🌟 這組裡面的 PM2.5 和 NO2 會變成圓圈按鈕，只能選一個
+    }).addTo(map);
+
+
+    // --- 修正後的點擊收合邏輯 ---
+    function setupLayerAccordion() {
+        // 1. 找到所有的群組標題 (span)
+        var groupTitles = document.querySelectorAll('.leaflet-control-layers-group-name');
+        
+        if (groupTitles.length === 0) {
+            // 如果還沒生成，0.2秒後再試一次 (遞迴)
+            setTimeout(setupLayerAccordion, 200);
+            return;
+        }
+
+        groupTitles.forEach(function(title) {
+            // 確保不重複綁定
+            if (title.getAttribute('data-bound')) return;
+            title.setAttribute('data-bound', 'true');
+
+            title.onclick = function(e) {
+                // 阻止 Leaflet 原生的事件干擾
+                L.DomEvent.stopPropagation(e);
+                
+                // 找到最外層的群組容器
+                var container = this.closest('.leaflet-control-layers-group');
+                if (container) {
+                    container.classList.toggle('is-open');
+                }
+            };
+        });
+    }
+
+    // 執行綁定
+    setupLayerAccordion();
+
+
+    /*----------------------------------更改縮放鍵位置-------------------------------------*/
+    map.zoomControl.remove();
+    L.control.zoom({
+        position: 'bottomleft' 
+    }).addTo(map);
+
+
+    /*--------------------------------------------------------------------坐標濃度搜尋---------------------------------------------------------------------------------*/
+    
+    var searchControl = L.control({position: 'topleft'});
+
+    searchControl.onAdd = function (map) {
+        var div = L.DomUtil.create('div', 'search-panel-container');
+        div.innerHTML = `
+            <div id="search-box" style="
+                background: white; 
+                padding: 15px; 
+                border-radius: 8px; 
+                box-shadow: 0 2px 15px rgba(0,0,0,0.2);
+                border: 2px solid #003049;
+                min-width: 300px;
+            ">
+                <h2 style="margin: 0 0 12px 0; font-size: 18px; color: #2c3e50; font-weight: bold;">🔎 想查詢哪裡的濃度數值?</h2>
+                
+                <div style="display: flex; align-items: flex-end; gap: 10px;">
+                    
+                    <div class="input-group" style="display: flex; flex-direction: column; gap: 4px;">
+                        <label style="font-size: 14px; color: #666; font-weight: bold;">經度 (lon)：</label>
+                        <input type="number" id="lngInput" step="0.0001" value="120.647" 
+                            style="width: 100px; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+
+                    <div class="input-group" style="display: flex; flex-direction: column; gap: 4px;">
+                        <label style="font-size: 14px; color: #666; font-weight: bold;">緯度 (lat)：</label>
+                        <input type="number" id="latInput" step="0.0001" value="24.162" 
+                            style="width: 100px; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                    </div>
+                    
+                    
+                    <button onclick="queryCoordinate()" style="
+                        padding: 7px 15px; 
+                        background-color: #3498db; 
+                        color: white; 
+                        border: none; 
+                        border-radius: 4px; 
+                        cursor: pointer; 
+                        font-weight: bold;
+                        height: 33px; 
+                    ">查詢數值</button>
+                </div>
+                
+                <div id="queryResult" style="margin-top: 12px; font-weight: bold; color: #d73027; font-size: 14px;"></div>
+            </div>
+        `;
+        
+        L.DomEvent.disableScrollPropagation(div);
+        L.DomEvent.disableClickPropagation(div);
+        
+        return div;
+    };
+
+    // 因為現在 PM2.5 預設是開啟的，所以這裡會執行，讓搜尋框在載入時就顯示
+    if (map.hasLayer(pm25Group)) {
+        searchControl.addTo(map);
+    }
+
+    var searchMarkerCircle = null;
+
+    // 12. 輸入坐標搜尋濃度值
+    function queryCoordinate() {
+        var resDiv = document.getElementById('queryResult'); 
+        var latInput = document.getElementById('latInput');
+        var lngInput = document.getElementById('lngInput');
+
+        var inputLat = parseFloat(latInput.value);
+        var inputLng = parseFloat(lngInput.value);
+
+        if (searchMarkerCircle) {
+            map.removeLayer(searchMarkerCircle);
+        }
+
+        map.flyTo([inputLat, inputLng], 14);
+        
+        var latMin = 23.755, latMax = 24.71;
+        var lngMin = 120.275, lngMax = 121.62;     
+
+        if (inputLat < latMin || inputLat > latMax || inputLng < lngMin || inputLng > lngMax) {
+            resDiv.innerHTML = "坐標超出推估範圍";
+            L.popup().setLatLng([inputLat, inputLng]).setContent("<b style='color:red;'>範圍外</b><br>此處無模型推估數據").openOn(map);
+            return;
+        }
+
+        var targetData = null;
+        var unit = "";
+        var name = "";
+
+        if (map.hasLayer(pm25Group)) {
+            targetData = pollutionData;
+            unit = "µg/m³";
+            name = "PM2.5";
+        } else if (map.hasLayer(no2Group)) {
+            targetData = pollutionNO2Data;
+            unit = "ppb";
+            name = "NO2";
+        } else {
+             resDiv.innerHTML = "請先開啟任一濃度圖層";
+             return;
+        }
+
+
+        var minDistance = Infinity;
+        var closestFeature = null;
+
+        targetData.features.forEach(function(feature) {
+            var coords = feature.geometry.coordinates; 
+            var dist = Math.sqrt(
+                Math.pow(inputLat - coords[1], 2) + 
+                Math.pow(inputLng - coords[0], 2)
+            );
+
+            if (dist < minDistance) {
+                minDistance = dist;
+                closestFeature = feature;
+            }
+        });
+
+        if (minDistance > 0.005) { 
+            resDiv.innerHTML = "搜尋位置較偏僻，無有效推估數據";
+            L.popup().setLatLng([inputLat, inputLng]).setContent("<b style='color:orange;'>無數據</b><br>搜尋點周邊無監測網格").openOn(map);
+            return;
+        }
+
+        if (closestFeature) {
+            var rawValue = closestFeature.properties.value;
+            var value = rawValue.toFixed(2);
+            
+            // 搜尋邏輯：只在 PM2.5 時判斷標準，NO2 不做判斷
+            var statusHtml = ""; 
+
+            if (name === "PM2.5") {
+                if (rawValue > 30) {
+                    statusHtml = `<br><b style="color: red; font-size: 14px;">❌超過每日平均標準</b>`;
+                } else {
+                    statusHtml = `<br><b style="color: green; font-size: 14px;">✅符合每日平均標準</b>`;
+                }
+            }
+            // 如果是 NO2，statusHtml 就保持空字串
+
+            var resDiv = document.getElementById('queryResult');
+            resDiv.innerHTML = "➡️ 這個位置的 " + name + " 濃度為： " + value + " " + unit;
+
+            searchMarkerCircle = L.circle([inputLat, inputLng], {
+                radius: 100,
+                color: '#d73027',
+                weight: 2,
+                fillColor: '#f1c40f',
+                fillOpacity: 1,
+                dashArray: '5, 5',
+                interactive: false
+            }).addTo(map);
+                
+            map.setView([inputLat, inputLng], 14);
+            
+            L.popup()
+                .setLatLng([inputLat, inputLng])
+                .setContent(`
+                    <div style="font-family: 'Microsoft JhengHei';">
+                        <b>📍查詢坐標：</b><br>${inputLat}, ${inputLng}<br>
+                        <hr style="margin: 5px 0;">
+                        <b>${name} 預估濃度：</b>${value} ${unit}
+                        ${statusHtml} 
+                    </div>
+                `)
+                .openOn(map);
+        }
+    }
+
+    /*----------------------------------------------------------------------------------------------------------------------------------------*/
+
+    </script>
+    
+    
+</body>
+</html>
