@@ -330,6 +330,48 @@
         }
         .hero-banner h1 { font-size: 28px; }
         .hero-banner p { font-size: 18px; }
+        
+        /* 1. 讓所有控制項的字體變小，節省空間 */
+        .leaflet-control-container .leaflet-control,
+        .info, 
+        .legend {
+            font-size: 11px !important; /* 強制變小 */
+            padding: 4px 6px !important; /* 減少內邊距 */
+            margin-right: 5px !important;
+        }
+    
+        /* 2. 調整左上角：搜尋框/資訊框 */
+        /* 限制最大寬度，避免蓋住右邊的圖層選單 */
+        .info.search-box, .info {
+            max-width: 140px; 
+            white-space: normal; /* 允許文字換行 */
+        }
+    
+        /* 3. 調整右上角：圖層控制器 */
+        /* 把它稍微往下推一點，避免跟搜尋框並排時撞在一起 */
+        .leaflet-top.leaflet-right {
+            margin-top: 40px; 
+        }
+    
+        /* 4. 調整右下角：圖例 (Legend) */
+        /* 手機版改放到「左下角」，分散擁擠度！ */
+        .legend {
+            clear: both;
+            /* 如果原本是 bottom: 30px right: 30px */
+            /* 我們這裡改寫它的位置 */
+            max-height: 150px; /* 限制高度 */
+            overflow-y: auto;  /* 如果圖例太長，出現捲軸 */
+            max-width: 120px;  /* 限制寬度 */
+            
+            /* 讓圖例稍微半透明一點，才不會擋住地圖 */
+            background: rgba(255, 255, 255, 0.8);
+        }
+        
+        /* 5. 圖片 (Logo) 縮小 */
+        .logo-img {
+            height: 30px !important; /* Logo 縮小 */
+            width: auto;
+        }
     }
 
     /* ==========================================================================
@@ -1043,5 +1085,6 @@
 </body>
 
 </html>
+
 
 
