@@ -331,69 +331,6 @@
         .hero-banner h1 { font-size: 28px; }
         .hero-banner p { font-size: 18px; }
 
-        /* 1. 基礎設定：讓所有控制項字體變小 */
-        .leaflet-control-container .leaflet-control,
-        .info, 
-        .legend {
-            font-size: 11px !important;
-            padding: 4px 6px !important;
-        }
-
-        /* --------------------------------------
-        2. 圖例 (Legend) -> 改到【左上角】
-        -------------------------------------- */
-        .legend {
-            position: absolute !important; /* 強制定位 */
-            
-            /* 避開左上角的 +/- 縮放按鈕 (預設約佔 50~60px 高) */
-            top: 1px !important;       
-            left: 1px !important;
-            
-            /* 清除原本的定位 */
-            bottom: auto !important;
-            right: auto !important;
-            margin: 0 !important;
-
-            /* 避免圖例太長擋住畫面 */
-            max-height: 200px;
-            overflow-y: auto;       /* 超出高度可滑動 */
-            max-width: 110px;       /* 限制寬度 */
-            background: rgba(255, 255, 255, 0.85); /* 稍微不透明一點 */
-            z-index: 1000;          /* 確保浮在最上面 */
-        }
-
-        /* --------------------------------------
-        3. 濃度搜尋值 (.info) -> 改到【右下角】
-        -------------------------------------- */
-        .info {
-            position: absolute !important;
-            
-            /* 定位在右下 */
-            bottom: 25px !important;    
-            right: 10px !important;
-            
-            /* 清除原本的定位 */
-            top: auto !important;
-            left: auto !important;
-            margin: 0 !important;
-            
-            max-width: 150px;       /* 不要太寬 */
-            z-index: 1000;
-        }
-
-        /* --------------------------------------
-        4. 圖層選單 (Layer Control) -> 維持右上角
-        -------------------------------------- */
-        .leaflet-top.leaflet-right {
-            /* 稍微往下移一點點，以免太貼頂端 */
-            margin-top: 1px !important;
-        }
-
-        /* 5. Logo 縮小 */
-        .logo-img {
-            height: 30px !important;
-            width: auto;
-        }
        
     }
 
@@ -1108,6 +1045,7 @@
 </body>
 
 </html>
+
 
 
 
